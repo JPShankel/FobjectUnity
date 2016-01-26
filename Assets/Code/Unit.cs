@@ -4,12 +4,15 @@ using System.Collections;
 public class Unit : MonoBehaviour {
 
 	public bool Selected{ 
-		get { return _selected;} 
-		set { _selected = value; 
+		get { 
+			return _selected;
+		} 
+		set {
+			_selected = value; 
 			if (value){
-				this.gameObject.GetComponent<MeshRenderer>().material = (Material)Material.Instantiate(Resources.Load("Materials/Red"));
+				gameObject.GetComponent<MeshRenderer>().material = (Material)Material.Instantiate(Resources.Load("Materials/Red"));
 			} else {
-				this.gameObject.GetComponent<MeshRenderer>().material = (Material)Material.Instantiate(Resources.Load("Materials/Green"));
+				gameObject.GetComponent<MeshRenderer>().material = (Material)Material.Instantiate(Resources.Load("Materials/Green"));
 			}
 		}
 	}
@@ -18,9 +21,17 @@ public class Unit : MonoBehaviour {
 
 	public int Id = 0;
 
+	public void BeginDrag() {
+		_dragOrigin = gameObject.transform.position;
+	}
+
+	public Vector3 DragOrigin { get { return _dragOrigin;} }
+
+	private Vector3 _dragOrigin;
+
 	// Use this for initialization
 	void Start () {
-	
+
 	}
 	
 	// Update is called once per frame

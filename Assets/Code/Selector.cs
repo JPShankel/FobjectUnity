@@ -6,50 +6,33 @@ using System.Collections.Generic;
 
 public class Selector : MonoBehaviour {
 
+	// App state
 	public enum State {
 		Neutral,
 		Moving,
 		Selecting
 	}
+
+	// State change transactions
+	class Transaction{
 		
-	private class Transaction{
 		public enum Type {
 			ChangeState,
 			ToggleSelect,
 			DeselectAll,
-			MoveObject
+			MoveObject,
+			BeginDrag,
+			SetSelected
 		}
 
 		public Type type;
 		public State state;
 		public Unit unit;
 		public Vector3 position;
-
-		public Transaction(Type t,State s) {
-			type = t;
-			state = s;
-		}
-
-		public Transaction(Type t,Unit u) {
-			type = t;
-			unit = u;
-		}
-
-		public Transaction(Type t,Unit u,Vector3 p) {
-			type = t;
-			unit = u;
-			position = p;
-		}
-
-		public Transaction(Type t) {
-			type = t;
-		}
+		public bool bval;
 	}
 
-	State _state = State.Neutral;
-
-	Unit[] _units;
-
+	// Input handlers
 	class FuncParams{
 		public Vector3 position;
 		public Unit unit;
@@ -60,17 +43,26 @@ public class Selector : MonoBehaviour {
 			selected = s;
 		}
 	}
-
-	private class MouseFuncMap : Dictionary<State,Func<FuncParams,List<Transaction>>>{};
-
+	class MouseFuncMap : Dictionary<State,Func<FuncParams,List<Transaction>>>{};
 	MouseFuncMap _mouseDown = new MouseFuncMap();
 	MouseFuncMap _mouseUp   = new MouseFuncMap();
 	MouseFuncMap _mouseMove = new MouseFuncMap();
 
-	private class TransactionMap : Dictionary<Transaction.Type,Action<Transaction>>{};
+	// Transaction handlers
+	class TransactionMap : Dictionary<Transaction.Type,Action<Transaction>>{};
 	TransactionMap _transactionMap = new TransactionMap();
+	void ProcessTransaction(Transaction t){
+		_transactionMap[t.type](t);
+	}
 
-	// Use this for initialization
+	// State data
+	State _state = State.Neutral;
+	Unit[] _units;
+	Vector3 _lastMousePos = new Vector3(0,0,0);
+	Vector3 _mouseDragAnchor = new Vector3(0,0,0);
+
+
+	// Unity methods
 	void Start () {
 
 		GameObject root = GameObject.Find("Units");
@@ -80,49 +72,44 @@ public class Selector : MonoBehaviour {
 			.ToList()
 			.ForEach(i=>_units[i].Id = i+1);
 
-
 		_mouseDown[State.Neutral] = (t) =>{
 			if (t.unit!=null){
 				return new Transaction[] {
-					new Transaction(Transaction.Type.ChangeState,State.Moving),
-					new Transaction(Transaction.Type.DeselectAll),
-					new Transaction(Transaction.Type.ToggleSelect,t.unit)
+					new Transaction(){type = Transaction.Type.ChangeState,state = State.Moving},
+					new Transaction(){type = Transaction.Type.SetSelected,unit = t.unit,bval=true},
+					new Transaction(){type = Transaction.Type.BeginDrag,position=t.position},
 				}.ToList();
 			} else {
 				return new Transaction[] {
-					new Transaction(Transaction.Type.ChangeState,State.Selecting),
-					new Transaction(Transaction.Type.DeselectAll),
-					new Transaction(Transaction.Type.ToggleSelect,t.unit)
+					new Transaction(){type = Transaction.Type.ChangeState,state = State.Selecting},
+					new Transaction(){type = Transaction.Type.DeselectAll}
 				}.ToList();
 			}
 		};
 
 		_mouseUp[State.Moving] = 
-		_mouseUp[State.Selecting] = (t) =>{
-				return new Transaction[] {new Transaction(Transaction.Type.ChangeState,State.Neutral)
+		_mouseUp[State.Selecting] = (t) => 
+			new Transaction[] {
+				new Transaction(){type = Transaction.Type.ChangeState,state = State.Neutral}
 			}.ToList();
-		};	
 
-		_mouseMove[State.Moving] = (t) => {
-			if (t.selected.Length>0){
-				return new Transaction[] {new Transaction(Transaction.Type.MoveObject,t.selected[0],t.position)
-				}.ToList();
-			} else {
-				return new Transaction[] {new Transaction(Transaction.Type.MoveObject,null,t.position)
-				}.ToList();
-			}
-		};
+		_mouseMove[State.Moving] = (t) => 
+			t.selected.Select(s=>
+				new Transaction(){type = Transaction.Type.MoveObject,unit = s,position = t.position}
+			).ToList();
 
 		_transactionMap[Transaction.Type.ChangeState] = t => _state = t.state;
 		_transactionMap[Transaction.Type.DeselectAll] = t => _units.ToList().ForEach(u=>u.Selected = false);
-		_transactionMap[Transaction.Type.ToggleSelect] = t => {if (t.unit!=null)t.unit.Selected=!t.unit.Selected;};
-		_transactionMap[Transaction.Type.MoveObject] = t => {if (t.unit!=null)t.unit.transform.position = t.position;};
-			
+		_transactionMap[Transaction.Type.ToggleSelect] = t => t.unit.Selected = !t.unit.Selected;
+		_transactionMap[Transaction.Type.SetSelected] = t => t.unit.Selected = t.bval;
+		_transactionMap[Transaction.Type.MoveObject] = t => t.unit.transform.position = t.unit.DragOrigin + t.position - _mouseDragAnchor;
+		_transactionMap[Transaction.Type.BeginDrag] = t => {_mouseDragAnchor = t.position;
+															_units.Where(u=>u.Selected)
+																	.ToList()
+																	.ForEach(u=>u.BeginDrag());};
 	}
 		
-	Vector3 _lastMousePos = new Vector3(0,0,0);
-	
-	// Update is called once per frame
+
 	void Update () {
 
 		Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
@@ -134,14 +121,12 @@ public class Selector : MonoBehaviour {
 
 		Vector3 planePoint = ray.origin - (ray.origin.y/ray.direction.y)*ray.direction;
 
-		Unit[] selected = _units.Where(u=>u.Selected).ToArray();
-
 		if (Input.GetMouseButtonDown(0)) {
 			_mouseDown[_state](new FuncParams(planePoint
 								,hoverUnit
 								,_units.Where(u=>u.Selected)
 										.ToArray()))
-				.ForEach(t=>_transactionMap[t.type](t));
+				.ForEach(t=>ProcessTransaction(t));
 		} 
 
 		if (Input.GetMouseButtonUp(0)) {
@@ -149,7 +134,7 @@ public class Selector : MonoBehaviour {
 								,hoverUnit
 								,_units.Where(u=>u.Selected)
 										.ToArray()))
-				.ForEach(t=>_transactionMap[t.type](t));
+				.ForEach(t=>ProcessTransaction(t));
 		} 
 
 		if ((Input.mousePosition-_lastMousePos).magnitude > 0){
@@ -158,7 +143,7 @@ public class Selector : MonoBehaviour {
 									,hoverUnit
 									,_units.Where(u=>u.Selected)
 											.ToArray()))
-					.ForEach(t=>_transactionMap[t.type](t));
+					.ForEach(t=>ProcessTransaction(t));
 			}
 		}
 	}
