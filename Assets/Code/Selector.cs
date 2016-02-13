@@ -154,6 +154,16 @@ public class Selector : MonoBehaviour {
 			type = t;
 			token = s;
 		}
+
+		public TokenTag(){}
+
+		public TokenTag Clone()
+		{
+			return new TokenTag{
+				type = this.type,
+				token = this.token
+			};
+		}
 	};
 		
 	class TokenDictionary : Dictionary<string,TokenTag> {};
@@ -221,8 +231,8 @@ public class Selector : MonoBehaviour {
 		string[] toks = trs.Split();
 
 		TokenTag[] tags = toks.Where(t => _tokenDictionary.ContainsKey(t))
-								.Select(t=>_tokenDictionary[t])
-								.ToArray();
+			.Select(t=>_tokenDictionary[t].Clone())
+			.ToArray();
 
 		TokenTag.Type[] adjectiveNoun = {TokenTag.Type.Adjective,TokenTag.Type.Noun};
 		TokenTag.Type[] prepositionNoun = {TokenTag.Type.Preposition,TokenTag.Type.Noun};
@@ -235,9 +245,9 @@ public class Selector : MonoBehaviour {
 
 
 		while (BuildTokenNodes(adjectiveNoun,1,tags)) { tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
-		while (BuildTokenNodes(prepositionNoun,0,tags)) {tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
-		while (BuildTokenNodes(nounPreposition,0,tags)){tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
-		while (BuildTokenNodes(pronounPreposition,0,tags)){tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
+		while (BuildTokenNodes(prepositionNoun,0,tags)) { tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
+	//	while (BuildTokenNodes(nounPreposition,0,tags)){tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
+	//	while (BuildTokenNodes(pronounPreposition,0,tags)){tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
 		while (BuildTokenNodes(verbNoun,0,tags)){tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
 		while (BuildTokenNodes(verbPronoun,0,tags)){tags = tags.Where(t=>t.parent==null).ToArray(); command = PrintTree(tags);}
 
