@@ -5,7 +5,54 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
+public class Monad<A>
+{
+	public A Value;
+	public  Monad(A v) { Value = v; }
+
+	public virtual Monad<B> Bind<B>(Func<A,Monad<B>> A2Mb)
+	{
+		return A2Mb(Value);
+	}
+}
+
 public class Selector : MonoBehaviour {
+
+
+	class StateMonad : Monad<string>
+	{
+		public int State;
+		public StateMonad() : base(""){ State = 0;}
+		public StateMonad(int s,string v) : base(v) { State = s; }
+
+		public StateMonad NextState(Func<int,Func<string,Monad<string>>> ns)
+		{
+			return Bind(ns(State)) as StateMonad;
+		}
+	};
+
+
+
+	public void TestMonad()
+	{
+		var A = new Monad<int>(0);
+
+		Func<int,Monad<int>> incHour = h => new Monad<int>((h+1)%12);
+
+		var B = A.Bind(incHour);
+
+		Func<int,Monad<string>> toString = h => new Monad<string>(h.ToString());
+
+		var C = B.Bind(toString);
+
+		var D = new Monad<int>(5).Bind(incHour).Bind(incHour).Bind(toString);
+
+		var E = new StateMonad();
+
+		Func<int,Func<string,Monad<string>>> ns = s => h => new StateMonad(s+1,h+":"+s) as Monad<string>;
+
+		var F = E.NextState(ns).NextState(ns).NextState(ns);
+	}
 
 	// App state
 	public enum State {
@@ -65,6 +112,8 @@ public class Selector : MonoBehaviour {
 
 	// Unity methods
 	void Start () {
+
+		TestMonad();
 
 		GameObject root = GameObject.Find("Units");
 		_units = root.GetComponentsInChildren<Unit>();
